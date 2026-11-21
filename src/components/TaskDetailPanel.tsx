@@ -93,7 +93,7 @@ export function TaskDetailPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex justify-end bg-slate-900/20 animate-fade-in" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-30 flex justify-end bg-black/30 animate-fade-in" onMouseDown={onClose}>
       <aside
         onMouseDown={(e) => e.stopPropagation()}
         className="flex h-full w-full flex-col bg-white shadow-2xl animate-slide-in sm:w-[460px]"
@@ -113,7 +113,7 @@ export function TaskDetailPanel({
                 </button>
                 <button
                   onClick={async () => (await onDelete(task.id)) && onClose()}
-                  className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-500"
+                  className="rounded-md bg-rose-600 px-2 py-1 text-xs font-medium text-[#fff] hover:bg-rose-500"
                 >
                   Delete
                 </button>

@@ -52,7 +52,7 @@ export function NewTaskModal({ initialStatus, onClose, onCreate, members, labels
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-end justify-center bg-slate-900/30 p-0 backdrop-blur-[2px] animate-fade-in sm:items-center sm:p-4"
+      className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 p-0 backdrop-blur-[2px] animate-fade-in sm:items-center sm:p-4"
       onMouseDown={onClose}
     >
       <form
@@ -113,7 +113,7 @@ export function NewTaskModal({ initialStatus, onClose, onCreate, members, labels
           <button
             type="submit"
             disabled={saving || !title.trim()}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fff] shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? 'Creating…' : 'Create task'}
           </button>

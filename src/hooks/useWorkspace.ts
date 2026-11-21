@@ -8,23 +8,20 @@ export function useWorkspace(ready: boolean) {
   const [labels, setLabels] = useState<Label[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!ready) return
-    let active = true
-    Promise.all([
+  const load = useCallback(async () => {
+    const [m, l] = await Promise.all([
       supabase.from('team_members').select('*').order('created_at'),
       supabase.from('labels').select('*').order('created_at'),
-    ]).then(([m, l]) => {
-      if (!active) return
-      const err = m.error ?? l.error
-      if (err) return setError(err.message)
-      setMembers(m.data as Member[])
-      setLabels(l.data as Label[])
-    })
-    return () => {
-      active = false
-    }
-  }, [ready])
+    ])
+    const err = m.error ?? l.error
+    if (err) return setError(err.message)
+    setMembers(m.data as Member[])
+    setLabels(l.data as Label[])
+  }, [])
+
+  useEffect(() => {
+    if (ready) void load()
+  }, [ready, load])
 
   // these return an error message, or null on success
   const addMember = useCallback(async (name: string, color: string) => {
@@ -55,5 +52,5 @@ export function useWorkspace(ready: boolean) {
     return null
   }, [])
 
-  return { members, labels, error, addMember, removeMember, addLabel, removeLabel }
+  return { members, labels, error, reload: load, addMember, removeMember, addLabel, removeLabel }
 }

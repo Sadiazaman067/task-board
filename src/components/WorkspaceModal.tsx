@@ -71,7 +71,7 @@ export function WorkspaceModal({ members, labels, onClose, addMember, removeMemb
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/30 backdrop-blur-[2px] animate-fade-in sm:items-center sm:p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-[2px] animate-fade-in sm:items-center sm:p-4" onMouseDown={onClose}>
       <div
         onMouseDown={(e) => e.stopPropagation()}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl animate-pop-in sm:rounded-2xl"

@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, LayoutGrid, Plus, RefreshCw, Users, X } from 'lucide-react'
+import { AlertCircle, LayoutGrid, Moon, Plus, RefreshCw, SearchX, Sun, Users, X } from 'lucide-react'
 import { AvatarStack } from './components/Avatar'
 import { Board } from './components/Board'
 import { NewTaskModal } from './components/NewTaskModal'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
-import { EMPTY_FILTERS, Toolbar } from './components/Toolbar'
+import { EMPTY_FILTERS, Toolbar, hasFilters } from './components/Toolbar'
 import type { Filters } from './components/Toolbar'
+import { WelcomeCard } from './components/WelcomeCard'
 import { WorkspaceModal } from './components/WorkspaceModal'
 import { useGuestSession } from './hooks/useGuestSession'
+import { useTheme } from './hooks/useTheme'
 import { useTasks } from './hooks/useTasks'
 import { useWorkspace } from './hooks/useWorkspace'
 import { isOverdue } from './lib/dates'
 import { LookupContext } from './lib/lookup'
+import { seedSampleBoard } from './lib/seed'
 import { COLUMNS } from './types'
 import type { Status } from './types'
 
@@ -19,6 +22,7 @@ export default function App() {
   const { session, error: authError, retry } = useGuestSession()
   const t = useTasks(session !== null)
   const ws = useWorkspace(session !== null)
+  const { theme, toggle: toggleTheme } = useTheme()
 
   const [newTaskStatus, setNewTaskStatus] = useState<Status | null>(null) // null = modal closed
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -93,12 +97,18 @@ export default function App() {
 
   const loading = t.loading
 
+  async function loadSample() {
+    const err = await seedSampleBoard()
+    if (err) t.showError(`Couldn't load the sample project: ${err}`)
+    await Promise.all([t.reload(), ws.reload()])
+  }
+
   return (
     <LookupContext.Provider value={lookup}>
       <div className="min-h-screen">
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
           <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-[#fff]">
               <LayoutGrid size={16} />
             </div>
             <div>
@@ -108,7 +118,15 @@ export default function App() {
               </p>
             </div>
 
-            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={toggleTheme}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
               <button
                 onClick={() => setWorkspaceOpen(true)}
                 disabled={!!fatal || loading}
@@ -126,7 +144,7 @@ export default function App() {
               <button
                 onClick={() => setNewTaskStatus('todo')}
                 disabled={!!fatal || loading}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-[#fff] shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
               >
                 <Plus size={15} /> <span className="hidden sm:inline">New task</span>
                 <kbd className="ml-1 hidden rounded bg-indigo-500 px-1 text-[10px] font-medium sm:inline">N</kbd>
@@ -142,14 +160,27 @@ export default function App() {
             <BoardSkeleton />
           ) : (
             <>
-              <Toolbar
-                filters={filters}
-                onChange={setFilters}
-                members={ws.members}
-                labels={ws.labels}
-                stats={stats}
-                shown={visibleTasks.length}
-              />
+              {t.tasks.length === 0 ? (
+                <WelcomeCard onCreate={() => setNewTaskStatus('todo')} onSeed={loadSample} />
+              ) : (
+                <Toolbar
+                  filters={filters}
+                  onChange={setFilters}
+                  members={ws.members}
+                  labels={ws.labels}
+                  stats={stats}
+                  shown={visibleTasks.length}
+                />
+              )}
+              {hasFilters(filters) && visibleTasks.length === 0 && (
+                <div className="mb-5 flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+                  <SearchX size={16} className="text-slate-400" />
+                  No tasks match these filters.
+                  <button onClick={() => setFilters(EMPTY_FILTERS)} className="font-medium text-indigo-600 hover:underline">
+                    Clear filters
+                  </button>
+                </div>
+              )}
               <Board
                 tasks={visibleTasks}
                 onMove={t.moveTask}

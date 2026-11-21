@@ -12,7 +12,7 @@ export function Avatar({ member, size = 22 }: { member: Member; size?: number })
   return (
     <span
       title={member.name}
-      className="inline-grid shrink-0 place-items-center rounded-full font-semibold text-white ring-2 ring-white select-none"
+      className="inline-grid shrink-0 place-items-center rounded-full font-semibold text-[#fff] ring-2 ring-white select-none tracking-tight"
       style={{ backgroundColor: member.color, width: size, height: size, fontSize: size * 0.4 }}
     >
       {initials(member.name)}
@@ -24,7 +24,7 @@ export function AvatarStack({ members, max = 3, size = 22 }: { members: Member[]
   if (members.length === 0) return null
   const extra = members.length - max
   return (
-    <span className="flex -space-x-1.5">
+    <span className="flex -space-x-0.5">
       {members.slice(0, max).map((m) => (
         <Avatar key={m.id} member={m} size={size} />
       ))}

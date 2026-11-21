@@ -21,6 +21,56 @@
   }
 }
 
+/*
+  DARK MODE, done with design tokens.
+  Tailwind v4 colors are CSS variables, so instead of adding `dark:` to every class,
+  we remap the palette when <html class="dark">. "white" becomes the card surface,
+  the slate scale flips, and the light tints (rose-50 etc.) become deep tints.
+*/
+.dark {
+  color-scheme: dark;
+
+  --color-white: #17191f;
+  --color-slate-50: #0d0f13;
+  --color-slate-100: #1c1f26;
+  --color-slate-200: #2a2e38;
+  --color-slate-300: #3b404c;
+  --color-slate-400: #6c7280;
+  --color-slate-500: #8d93a0;
+  --color-slate-600: #aab0bb;
+  --color-slate-700: #c8ccd4;
+  --color-slate-800: #e3e5ea;
+  --color-slate-900: #f0f1f4;
+
+  --color-rose-50: #2b1519;
+  --color-rose-100: #3b1b22;
+  --color-rose-200: #4f2029;
+  --color-rose-300: #6e2836;
+  --color-rose-700: #fda4af;
+
+  --color-sky-50: #10222f;
+  --color-sky-200: #183b53;
+  --color-sky-300: #1f4e6d;
+  --color-sky-700: #7dd3fc;
+
+  --color-amber-50: #2a210d;
+  --color-amber-200: #4b3611;
+  --color-amber-700: #fcd34d;
+
+  --color-indigo-50: #1c1e3d;
+  --color-indigo-200: #2f3473;
+  --color-indigo-300: #3f45a3;
+  --color-indigo-700: #c7d2fe;
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors;
+}
+
+/* respect people who turn off animations in their OS settings */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
 }

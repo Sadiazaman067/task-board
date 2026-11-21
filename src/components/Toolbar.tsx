@@ -57,7 +57,7 @@ function FilterMenu({ label, options, selected, onChange, empty }: {
         aria-expanded={open}
       >
         {label}
-        {active && <span className="rounded bg-indigo-600 px-1 text-[10px] text-white">{selected.length}</span>}
+        {active && <span className="rounded bg-indigo-600 px-1 text-[10px] text-[#fff]">{selected.length}</span>}
         <ChevronDown size={12} />
       </button>
 
@@ -152,7 +152,7 @@ export function Toolbar({ filters, onChange, members, labels, stats, shown }: Pr
             placeholder="Search tasks…"
             className="w-full rounded-lg border-0 bg-white py-1.5 pr-8 pl-8 text-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <kbd className="absolute top-1/2 right-2 -translate-y-1/2 rounded bg-slate-100 px-1.5 text-[10px] text-slate-400">/</kbd>
+          <kbd className="absolute top-1/2 right-2 hidden -translate-y-1/2 rounded sm:block bg-slate-100 px-1.5 text-[10px] text-slate-400">/</kbd>
         </div>
 
         <FilterMenu

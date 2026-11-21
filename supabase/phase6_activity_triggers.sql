@@ -1,5 +1,6 @@
-
+-- =========================================
 -- PHASE 6: log assignee + label changes in the activity timeline
+-- =========================================
 
 create or replace function public.log_assignee_activity()
 returns trigger language plpgsql security definer set search_path = public as $$
