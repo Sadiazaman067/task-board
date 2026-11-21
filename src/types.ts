@@ -14,6 +14,22 @@ export interface Task {
   updated_at: string
 }
 
+export interface Comment {
+  id: string
+  task_id: string
+  body: string
+  created_at: string
+}
+
+export interface Activity {
+  id: string
+  task_id: string
+  action: string
+  from_value: string | null
+  to_value: string | null
+  created_at: string
+}
+
 export interface ColumnDef {
   id: Status
   title: string
@@ -27,5 +43,10 @@ export const COLUMNS: ColumnDef[] = [
   { id: 'done', title: 'Done', dot: 'bg-emerald-500' },
 ]
 
+export const PRIORITIES: Priority[] = ['low', 'normal', 'high']
+
 export const isStatus = (id: unknown): id is Status =>
   COLUMNS.some((c) => c.id === id)
+
+export const statusTitle = (s: string) =>
+  COLUMNS.find((c) => c.id === s)?.title ?? s

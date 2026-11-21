@@ -10,9 +10,11 @@ interface Props {
   tasks: Task[]
   highlighted: boolean
   onCreate: (status: Status, title: string) => Promise<boolean>
+  onOpen: (id: string) => void
+  onAddClick: (status: Status) => void
 }
 
-export function Column({ column, tasks, highlighted, onCreate }: Props) {
+export function Column({ column, tasks, highlighted, onCreate, onOpen, onAddClick }: Props) {
   const { setNodeRef } = useDroppable({ id: column.id })
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
@@ -41,7 +43,7 @@ export function Column({ column, tasks, highlighted, onCreate }: Props) {
           {tasks.length}
         </span>
         <button
-          onClick={() => setAdding(true)}
+          onClick={() => onAddClick(column.id)}
           className="ml-auto rounded-md p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
           aria-label={`Add task to ${column.title}`}
         >
@@ -57,7 +59,7 @@ export function Column({ column, tasks, highlighted, onCreate }: Props) {
       >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((t) => (
-            <SortableTaskCard key={t.id} task={t} />
+            <SortableTaskCard key={t.id} task={t} onOpen={onOpen} />
           ))}
         </SortableContext>
 

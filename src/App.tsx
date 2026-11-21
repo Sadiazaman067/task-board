@@ -1,16 +1,47 @@
-import { AlertCircle, LayoutGrid, RefreshCw, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertCircle, LayoutGrid, Plus, RefreshCw, X } from 'lucide-react'
 import { Board } from './components/Board'
+import { NewTaskModal } from './components/NewTaskModal'
+import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { useGuestSession } from './hooks/useGuestSession'
 import { useTasks } from './hooks/useTasks'
 import { COLUMNS } from './types'
+import type { Status } from './types'
 
 export default function App() {
   const { session, error: authError, retry } = useGuestSession()
-  const { tasks, loading, error, actionError, clearActionError, reload, createTask, moveTask } =
-    useTasks(session !== null)
+  const {
+    tasks, loading, error, actionError, clearActionError, reload,
+    createTask, updateTask, moveTask, deleteTask,
+  } = useTasks(session !== null)
+
+  const [newTaskStatus, setNewTaskStatus] = useState<Status | null>(null) // null = modal closed
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
 
   const fatal = authError ?? error
   const doneCount = tasks.filter((t) => t.status === 'done').length
+
+  // keyboard shortcut: press "N" anywhere (when not typing) to create a task
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
+      if (!typing && !e.metaKey && !e.ctrlKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        setNewTaskStatus('todo')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // auto-hide error toasts after 5s
+  useEffect(() => {
+    if (!actionError) return
+    const t = setTimeout(clearActionError, 5000)
+    return () => clearTimeout(t)
+  }, [actionError, clearActionError])
 
   return (
     <div className="min-h-screen">
@@ -25,11 +56,22 @@ export default function App() {
               {session ? `Guest · ${session.user.id.slice(0, 8)}` : 'Starting session…'}
             </p>
           </div>
-          {!loading && !fatal && (
-            <p className="ml-auto text-xs text-slate-500">
-              <span className="font-semibold text-slate-800">{doneCount}</span> of {tasks.length} done
-            </p>
-          )}
+
+          <div className="ml-auto flex items-center gap-4">
+            {!loading && !fatal && (
+              <p className="hidden text-xs text-slate-500 sm:block">
+                <span className="font-semibold text-slate-800">{doneCount}</span> of {tasks.length} done
+              </p>
+            )}
+            <button
+              onClick={() => setNewTaskStatus('todo')}
+              disabled={!!fatal || loading}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
+            >
+              <Plus size={15} /> New task
+              <kbd className="ml-1 hidden rounded bg-indigo-500 px-1 text-[10px] font-medium sm:inline">N</kbd>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -43,13 +85,33 @@ export default function App() {
             tasks={tasks}
             onMove={moveTask}
             onCreate={(status, title) => createTask({ status, title })}
+            onOpen={setSelectedId}
+            onAddClick={setNewTaskStatus}
           />
         )}
       </main>
 
+      {newTaskStatus && (
+        <NewTaskModal
+          initialStatus={newTaskStatus}
+          onClose={() => setNewTaskStatus(null)}
+          onCreate={createTask}
+        />
+      )}
+
+      {selectedTask && (
+        <TaskDetailPanel
+          key={selectedTask.id}
+          task={selectedTask}
+          onClose={() => setSelectedId(null)}
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+        />
+      )}
+
       {actionError && (
-        <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg">
-          <AlertCircle size={16} className="text-rose-400" />
+        <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg animate-pop-in">
+          <AlertCircle size={16} className="shrink-0 text-rose-400" />
           {actionError}
           <button onClick={clearActionError} className="text-slate-400 hover:text-white" aria-label="Dismiss">
             <X size={16} />

@@ -20,11 +20,13 @@ interface Props {
   tasks: Task[]
   onMove: (id: string, status: Status, position: number) => void
   onCreate: (status: Status, title: string) => Promise<boolean>
+  onOpen: (id: string) => void
+  onAddClick: (status: Status) => void
 }
 
 const GAP = 1000
 
-export function Board({ tasks, onMove, onCreate }: Props) {
+export function Board({ tasks, onMove, onCreate, onOpen, onAddClick }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overStatus, setOverStatus] = useState<Status | null>(null)
 
@@ -112,6 +114,8 @@ export function Board({ tasks, onMove, onCreate }: Props) {
             tasks={byStatus[col.id]}
             highlighted={activeTask !== null && overStatus === col.id && activeTask.status !== col.id}
             onCreate={onCreate}
+            onOpen={onOpen}
+            onAddClick={onAddClick}
           />
         ))}
       </div>
