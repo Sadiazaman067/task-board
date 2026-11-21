@@ -12,6 +12,25 @@ export interface Task {
   position: number
   created_at: string
   updated_at: string
+  // joined from the link tables (see TASK_SELECT in useTasks)
+  task_assignees: { member_id: string }[]
+  task_labels: { label_id: string }[]
+  // local-only counter, bumped after assignee/label changes so the activity log refreshes
+  _rev?: number
+}
+
+export interface Member {
+  id: string
+  name: string
+  color: string
+  created_at: string
+}
+
+export interface Label {
+  id: string
+  name: string
+  color: string
+  created_at: string
 }
 
 export interface Comment {
@@ -44,6 +63,8 @@ export const COLUMNS: ColumnDef[] = [
 ]
 
 export const PRIORITIES: Priority[] = ['low', 'normal', 'high']
+
+export const SWATCHES = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b']
 
 export const isStatus = (id: unknown): id is Status =>
   COLUMNS.some((c) => c.id === id)

@@ -8,12 +8,16 @@ export interface NewTask {
   description?: string | null
   priority?: Priority
   due_date?: string | null
+  assignee_ids?: string[]
+  label_ids?: string[]
 }
 
 export type TaskPatch = Partial<
   Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'position'>
 >
 
+// fetch each task together with its assignee + label ids in ONE request (PostgREST embedding)
+const TASK_SELECT = '*, task_assignees(member_id), task_labels(label_id)'
 const GAP = 1000
 
 export function useTasks(ready: boolean) {
@@ -27,7 +31,7 @@ export function useTasks(ready: boolean) {
     setError(null)
     const { data, error } = await supabase
       .from('tasks')
-      .select('*')
+      .select(TASK_SELECT)
       .order('position', { ascending: true })
     if (error) setError(error.message)
     else setTasks((data ?? []) as Task[])
@@ -37,6 +41,9 @@ export function useTasks(ready: boolean) {
   useEffect(() => {
     if (ready) void load()
   }, [ready, load])
+
+  const patchLocal = (id: string, fn: (t: Task) => Task) =>
+    setTasks((prev) => prev.map((t) => (t.id === id ? fn(t) : t)))
 
   // position for a task added to the bottom of a column
   const endOf = useCallback(
@@ -48,18 +55,37 @@ export function useTasks(ready: boolean) {
   )
 
   const createTask = useCallback(
-    async (input: NewTask) => {
+    async ({ assignee_ids = [], label_ids = [], ...input }: NewTask) => {
       const { data, error } = await supabase
         .from('tasks')
         .insert({ ...input, position: endOf(input.status) })
-        .select()
+        .select(TASK_SELECT)
         .single()
 
       if (error) {
         setActionError(`Couldn't create task: ${error.message}`)
         return false
       }
-      setTasks((prev) => [...prev, data as Task])
+      const task = data as Task
+
+      const [a, l] = await Promise.all([
+        assignee_ids.length
+          ? supabase.from('task_assignees').insert(assignee_ids.map((member_id) => ({ task_id: task.id, member_id })))
+          : { error: null },
+        label_ids.length
+          ? supabase.from('task_labels').insert(label_ids.map((label_id) => ({ task_id: task.id, label_id })))
+          : { error: null },
+      ])
+      if (a.error || l.error) setActionError('Task created, but some assignees/labels failed to save.')
+
+      setTasks((prev) => [
+        ...prev,
+        {
+          ...task,
+          task_assignees: a.error ? [] : assignee_ids.map((member_id) => ({ member_id })),
+          task_labels: l.error ? [] : label_ids.map((label_id) => ({ label_id })),
+        },
+      ])
       return true
     },
     [endOf],
@@ -74,14 +100,9 @@ export function useTasks(ready: boolean) {
         patch = { ...patch, position: endOf(patch.status) }
       }
 
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+      patchLocal(id, (t) => ({ ...t, ...patch }))
 
-      const { data, error } = await supabase
-        .from('tasks')
-        .update(patch)
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await supabase.from('tasks').update(patch).eq('id', id).select(TASK_SELECT).single()
 
       if (error) {
         setActionError("Couldn't save that change, so the board was refreshed.")
@@ -89,7 +110,7 @@ export function useTasks(ready: boolean) {
         return false
       }
       // swap in the saved row (fresh updated_at tells the detail panel to refresh activity)
-      setTasks((prev) => prev.map((t) => (t.id === id ? (data as Task) : t)))
+      patchLocal(id, (t) => ({ ...(data as Task), _rev: t._rev }))
       return true
     },
     [tasks, endOf, load],
@@ -114,16 +135,83 @@ export function useTasks(ready: boolean) {
     [load],
   )
 
+  const toggleAssignee = useCallback(
+    async (taskId: string, memberId: string) => {
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      const on = task.task_assignees.some((a) => a.member_id === memberId)
+
+      patchLocal(taskId, (t) => ({
+        ...t,
+        task_assignees: on
+          ? t.task_assignees.filter((a) => a.member_id !== memberId)
+          : [...t.task_assignees, { member_id: memberId }],
+      }))
+
+      const { error } = on
+        ? await supabase.from('task_assignees').delete().match({ task_id: taskId, member_id: memberId })
+        : await supabase.from('task_assignees').insert({ task_id: taskId, member_id: memberId })
+
+      if (error) {
+        setActionError("Couldn't update assignees, so the board was refreshed.")
+        void load()
+      } else {
+        patchLocal(taskId, (t) => ({ ...t, _rev: (t._rev ?? 0) + 1 }))
+      }
+    },
+    [tasks, load],
+  )
+
+  const toggleLabel = useCallback(
+    async (taskId: string, labelId: string) => {
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      const on = task.task_labels.some((l) => l.label_id === labelId)
+
+      patchLocal(taskId, (t) => ({
+        ...t,
+        task_labels: on
+          ? t.task_labels.filter((l) => l.label_id !== labelId)
+          : [...t.task_labels, { label_id: labelId }],
+      }))
+
+      const { error } = on
+        ? await supabase.from('task_labels').delete().match({ task_id: taskId, label_id: labelId })
+        : await supabase.from('task_labels').insert({ task_id: taskId, label_id: labelId })
+
+      if (error) {
+        setActionError("Couldn't update labels, so the board was refreshed.")
+        void load()
+      } else {
+        patchLocal(taskId, (t) => ({ ...t, _rev: (t._rev ?? 0) + 1 }))
+      }
+    },
+    [tasks, load],
+  )
+
+  // after a member/label is deleted, the db cascade removes its links. mirror that locally.
+  const forgetMember = useCallback((memberId: string) => {
+    setTasks((prev) => prev.map((t) => ({ ...t, task_assignees: t.task_assignees.filter((a) => a.member_id !== memberId) })))
+  }, [])
+  const forgetLabel = useCallback((labelId: string) => {
+    setTasks((prev) => prev.map((t) => ({ ...t, task_labels: t.task_labels.filter((l) => l.label_id !== labelId) })))
+  }, [])
+
   return {
     tasks,
     loading,
     error,
     actionError,
+    showError: setActionError,
     clearActionError: () => setActionError(null),
     reload: load,
     createTask,
     updateTask,
     moveTask,
     deleteTask,
+    toggleAssignee,
+    toggleLabel,
+    forgetMember,
+    forgetLabel,
   }
 }

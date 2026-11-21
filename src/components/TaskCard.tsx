@@ -2,7 +2,9 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AlignLeft, CalendarDays } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
-import type { Task } from '../types'
+import { useLookup } from '../lib/lookup'
+import type { Label, Member, Task } from '../types'
+import { AvatarStack, LabelChip } from './Avatar'
 
 // only show priority when it's not "normal" (keeps cards calm, like Linear)
 const PRIORITY_BADGE = {
@@ -27,10 +29,14 @@ function dueInfo(due: string | null, done: boolean) {
 }
 
 export function TaskCardView({ task, overlay = false }: { task: Task; overlay?: boolean }) {
+  const { members, labels } = useLookup()
   const due = dueInfo(task.due_date, task.status === 'done')
   const badge = PRIORITY_BADGE[task.priority]
   const done = task.status === 'done'
-  const hasMeta = due || task.description
+
+  const taskLabels = task.task_labels.map((l) => labels.get(l.label_id)).filter((l): l is Label => !!l)
+  const assignees = task.task_assignees.map((a) => members.get(a.member_id)).filter((m): m is Member => !!m)
+  const hasMeta = due || task.description || assignees.length > 0
 
   return (
     <article
@@ -40,10 +46,16 @@ export function TaskCardView({ task, overlay = false }: { task: Task; overlay?: 
           : 'cursor-pointer shadow-sm ring-slate-200 hover:shadow-md hover:ring-slate-300'
       }`}
     >
-      {badge && (
-        <span className={`mb-2 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ${badge.cls}`}>
-          {badge.label}
-        </span>
+      {(badge || taskLabels.length > 0) && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {badge && (
+            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ${badge.cls}`}>{badge.label}</span>
+          )}
+          {taskLabels.slice(0, 3).map((l) => (
+            <LabelChip key={l.id} name={l.name} color={l.color} />
+          ))}
+          {taskLabels.length > 3 && <span className="px-1 text-[11px] text-slate-400">+{taskLabels.length - 3}</span>}
+        </div>
       )}
 
       <h3 className={`text-sm font-medium leading-snug ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
@@ -59,6 +71,9 @@ export function TaskCardView({ task, overlay = false }: { task: Task; overlay?: 
             </span>
           )}
           {task.description && <AlignLeft size={13} className="text-slate-400" aria-label="Has description" />}
+          <span className="ml-auto">
+            <AvatarStack members={assignees} />
+          </span>
         </div>
       )}
     </article>
@@ -82,3 +97,4 @@ export function SortableTaskCard({ task, onOpen }: { task: Task; onOpen: (id: st
     </div>
   )
 }
+

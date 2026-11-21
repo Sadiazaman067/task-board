@@ -1,33 +1,68 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, LayoutGrid, Plus, RefreshCw, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, LayoutGrid, Plus, RefreshCw, Users, X } from 'lucide-react'
+import { AvatarStack } from './components/Avatar'
 import { Board } from './components/Board'
 import { NewTaskModal } from './components/NewTaskModal'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
+import { EMPTY_FILTERS, Toolbar } from './components/Toolbar'
+import type { Filters } from './components/Toolbar'
+import { WorkspaceModal } from './components/WorkspaceModal'
 import { useGuestSession } from './hooks/useGuestSession'
 import { useTasks } from './hooks/useTasks'
+import { useWorkspace } from './hooks/useWorkspace'
+import { isOverdue } from './lib/dates'
+import { LookupContext } from './lib/lookup'
 import { COLUMNS } from './types'
 import type { Status } from './types'
 
 export default function App() {
   const { session, error: authError, retry } = useGuestSession()
-  const {
-    tasks, loading, error, actionError, clearActionError, reload,
-    createTask, updateTask, moveTask, deleteTask,
-  } = useTasks(session !== null)
+  const t = useTasks(session !== null)
+  const ws = useWorkspace(session !== null)
 
   const [newTaskStatus, setNewTaskStatus] = useState<Status | null>(null) // null = modal closed
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
 
-  const fatal = authError ?? error
-  const doneCount = tasks.filter((t) => t.status === 'done').length
+  const selectedTask = t.tasks.find((x) => x.id === selectedId) ?? null
+  const fatal = authError ?? t.error ?? ws.error
+
+  const lookup = useMemo(
+    () => ({
+      members: new Map(ws.members.map((m) => [m.id, m])),
+      labels: new Map(ws.labels.map((l) => [l.id, l])),
+    }),
+    [ws.members, ws.labels],
+  )
+
+  const stats = useMemo(
+    () => ({
+      total: t.tasks.length,
+      done: t.tasks.filter((x) => x.status === 'done').length,
+      overdue: t.tasks.filter(isOverdue).length,
+    }),
+    [t.tasks],
+  )
+
+  // search + filters. within one filter = OR (High or Low); across filters = AND.
+  const visibleTasks = useMemo(() => {
+    const q = filters.search.trim().toLowerCase()
+    return t.tasks.filter(
+      (x) =>
+        (!q || x.title.toLowerCase().includes(q)) &&
+        (!filters.priorities.length || filters.priorities.includes(x.priority)) &&
+        (!filters.members.length || x.task_assignees.some((a) => filters.members.includes(a.member_id))) &&
+        (!filters.labels.length || x.task_labels.some((l) => filters.labels.includes(l.label_id))),
+    )
+  }, [t.tasks, filters])
 
   // keyboard shortcut: press "N" anywhere (when not typing) to create a task
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
-      if (!typing && !e.metaKey && !e.ctrlKey && e.key.toLowerCase() === 'n') {
+      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'n') {
         e.preventDefault()
         setNewTaskStatus('todo')
       }
@@ -37,88 +72,144 @@ export default function App() {
   }, [])
 
   // auto-hide error toasts after 5s
+  const { actionError, clearActionError } = t
   useEffect(() => {
     if (!actionError) return
-    const t = setTimeout(clearActionError, 5000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(clearActionError, 5000)
+    return () => clearTimeout(timer)
   }, [actionError, clearActionError])
 
+  // deleting a member/label also removes its links on every task
+  const removeMember = async (id: string) => {
+    const err = await ws.removeMember(id)
+    if (!err) t.forgetMember(id)
+    return err
+  }
+  const removeLabel = async (id: string) => {
+    const err = await ws.removeLabel(id)
+    if (!err) t.forgetLabel(id)
+    return err
+  }
+
+  const loading = t.loading
+
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">
-            <LayoutGrid size={16} />
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold">Task Board</h1>
-            <p className="text-xs text-slate-500">
-              {session ? `Guest · ${session.user.id.slice(0, 8)}` : 'Starting session…'}
-            </p>
-          </div>
-
-          <div className="ml-auto flex items-center gap-4">
-            {!loading && !fatal && (
-              <p className="hidden text-xs text-slate-500 sm:block">
-                <span className="font-semibold text-slate-800">{doneCount}</span> of {tasks.length} done
+    <LookupContext.Provider value={lookup}>
+      <div className="min-h-screen">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+          <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-white">
+              <LayoutGrid size={16} />
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold">Task Board</h1>
+              <p className="text-xs text-slate-500">
+                {session ? `Guest · ${session.user.id.slice(0, 8)}` : 'Starting session…'}
               </p>
-            )}
-            <button
-              onClick={() => setNewTaskStatus('todo')}
-              disabled={!!fatal || loading}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
-            >
-              <Plus size={15} /> New task
-              <kbd className="ml-1 hidden rounded bg-indigo-500 px-1 text-[10px] font-medium sm:inline">N</kbd>
-            </button>
-          </div>
-        </div>
-      </header>
+            </div>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-        {fatal ? (
-          <ErrorState message={fatal} onRetry={authError ? retry : () => void reload()} />
-        ) : loading ? (
-          <BoardSkeleton />
-        ) : (
-          <Board
-            tasks={tasks}
-            onMove={moveTask}
-            onCreate={(status, title) => createTask({ status, title })}
-            onOpen={setSelectedId}
-            onAddClick={setNewTaskStatus}
+            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setWorkspaceOpen(true)}
+                disabled={!!fatal || loading}
+                className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                title="Team & labels"
+              >
+                {ws.members.length > 0 ? (
+                  <AvatarStack members={ws.members} max={4} size={26} />
+                ) : (
+                  <>
+                    <Users size={15} /> <span className="hidden sm:inline">Team</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setNewTaskStatus('todo')}
+                disabled={!!fatal || loading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
+              >
+                <Plus size={15} /> <span className="hidden sm:inline">New task</span>
+                <kbd className="ml-1 hidden rounded bg-indigo-500 px-1 text-[10px] font-medium sm:inline">N</kbd>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+          {fatal ? (
+            <ErrorState message={fatal} onRetry={authError ? retry : () => window.location.reload()} />
+          ) : loading ? (
+            <BoardSkeleton />
+          ) : (
+            <>
+              <Toolbar
+                filters={filters}
+                onChange={setFilters}
+                members={ws.members}
+                labels={ws.labels}
+                stats={stats}
+                shown={visibleTasks.length}
+              />
+              <Board
+                tasks={visibleTasks}
+                onMove={t.moveTask}
+                onCreate={(status, title) => t.createTask({ status, title })}
+                onOpen={setSelectedId}
+                onAddClick={setNewTaskStatus}
+              />
+            </>
+          )}
+        </main>
+
+        {newTaskStatus && (
+          <NewTaskModal
+            initialStatus={newTaskStatus}
+            onClose={() => setNewTaskStatus(null)}
+            onCreate={t.createTask}
+            members={ws.members}
+            labels={ws.labels}
+            onManage={() => setWorkspaceOpen(true)}
           />
         )}
-      </main>
 
-      {newTaskStatus && (
-        <NewTaskModal
-          initialStatus={newTaskStatus}
-          onClose={() => setNewTaskStatus(null)}
-          onCreate={createTask}
-        />
-      )}
+        {selectedTask && (
+          <TaskDetailPanel
+            key={selectedTask.id}
+            task={selectedTask}
+            onClose={() => setSelectedId(null)}
+            onUpdate={t.updateTask}
+            onDelete={t.deleteTask}
+            onToggleAssignee={t.toggleAssignee}
+            onToggleLabel={t.toggleLabel}
+            members={ws.members}
+            labels={ws.labels}
+            onManage={() => setWorkspaceOpen(true)}
+          />
+        )}
 
-      {selectedTask && (
-        <TaskDetailPanel
-          key={selectedTask.id}
-          task={selectedTask}
-          onClose={() => setSelectedId(null)}
-          onUpdate={updateTask}
-          onDelete={deleteTask}
-        />
-      )}
+        {workspaceOpen && (
+          <WorkspaceModal
+            members={ws.members}
+            labels={ws.labels}
+            onClose={() => setWorkspaceOpen(false)}
+            addMember={ws.addMember}
+            removeMember={removeMember}
+            addLabel={ws.addLabel}
+            removeLabel={removeLabel}
+          />
+        )}
 
-      {actionError && (
-        <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg animate-pop-in">
-          <AlertCircle size={16} className="shrink-0 text-rose-400" />
-          {actionError}
-          <button onClick={clearActionError} className="text-slate-400 hover:text-white" aria-label="Dismiss">
-            <X size={16} />
-          </button>
-        </div>
-      )}
-    </div>
+        {actionError && (
+          <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg animate-pop-in">
+            <AlertCircle size={16} className="shrink-0 text-rose-400" />
+            {actionError}
+            <button onClick={clearActionError} className="text-slate-400 hover:text-white" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+    </LookupContext.Provider>
   )
 }
 

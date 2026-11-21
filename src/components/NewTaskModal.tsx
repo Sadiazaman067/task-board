@@ -2,21 +2,29 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
 import type { NewTask } from '../hooks/useTasks'
-import type { Priority, Status } from '../types'
-import { Field, PriorityPicker, StatusSelect, inputCls } from './fields'
+import type { Label, Member, Priority, Status } from '../types'
+import { Field, LabelPicker, MemberPicker, PriorityPicker, StatusSelect, inputCls } from './fields'
 
 interface Props {
   initialStatus: Status
   onClose: () => void
   onCreate: (task: NewTask) => Promise<boolean>
+  members: Member[]
+  labels: Label[]
+  onManage: () => void
 }
 
-export function NewTaskModal({ initialStatus, onClose, onCreate }: Props) {
+const toggle = (list: string[], id: string) =>
+  list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+
+export function NewTaskModal({ initialStatus, onClose, onCreate, members, labels, onManage }: Props) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<Status>(initialStatus)
   const [priority, setPriority] = useState<Priority>('normal')
   const [dueDate, setDueDate] = useState('')
+  const [assignees, setAssignees] = useState<string[]>([])
+  const [labelIds, setLabelIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -35,6 +43,8 @@ export function NewTaskModal({ initialStatus, onClose, onCreate }: Props) {
       status,
       priority,
       due_date: dueDate || null,
+      assignee_ids: assignees,
+      label_ids: labelIds,
     })
     setSaving(false)
     if (ok) onClose()
@@ -48,7 +58,7 @@ export function NewTaskModal({ initialStatus, onClose, onCreate }: Props) {
       <form
         onSubmit={submit}
         onMouseDown={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-2xl animate-pop-in sm:rounded-2xl"
+        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl animate-pop-in sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-task-title"
@@ -87,6 +97,12 @@ export function NewTaskModal({ initialStatus, onClose, onCreate }: Props) {
           </div>
           <Field label="Priority">
             <PriorityPicker value={priority} onChange={setPriority} />
+          </Field>
+          <Field label="Assignees">
+            <MemberPicker members={members} selected={assignees} onToggle={(id) => setAssignees((a) => toggle(a, id))} onManage={onManage} />
+          </Field>
+          <Field label="Labels">
+            <LabelPicker labels={labels} selected={labelIds} onToggle={(id) => setLabelIds((l) => toggle(l, id))} onManage={onManage} />
           </Field>
         </div>
 

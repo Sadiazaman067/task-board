@@ -5,14 +5,19 @@ import { ArrowRight, MessageSquare, Trash2, X } from 'lucide-react'
 import { useTaskDetail } from '../hooks/useTaskDetail'
 import type { TaskPatch } from '../hooks/useTasks'
 import { statusTitle } from '../types'
-import type { Activity, Task } from '../types'
-import { Field, PriorityPicker, StatusSelect, inputCls } from './fields'
+import type { Activity, Label, Member, Task } from '../types'
+import { Field, LabelPicker, MemberPicker, PriorityPicker, StatusSelect, inputCls } from './fields'
 
 interface Props {
   task: Task
   onClose: () => void
   onUpdate: (id: string, patch: TaskPatch) => Promise<boolean>
   onDelete: (id: string) => Promise<boolean>
+  onToggleAssignee: (taskId: string, memberId: string) => void
+  onToggleLabel: (taskId: string, labelId: string) => void
+  members: Member[]
+  labels: Label[]
+  onManage: () => void
 }
 
 const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true })
@@ -37,19 +42,29 @@ function describe(a: Activity) {
       return a.to_value
         ? <>Due date set to <b>{format(parseISO(a.to_value), 'MMM d, yyyy')}</b></>
         : <>Removed the due date</>
+    case 'assigned':
+      return <>Assigned <b>{a.to_value}</b></>
+    case 'unassigned':
+      return <>Unassigned <b>{a.from_value}</b></>
+    case 'labeled':
+      return <>Added label <b>{a.to_value}</b></>
+    case 'unlabeled':
+      return <>Removed label <b>{a.from_value}</b></>
     default:
       return a.action
   }
 }
 
-export function TaskDetailPanel({ task, onClose, onUpdate, onDelete }: Props) {
+export function TaskDetailPanel({
+  task, onClose, onUpdate, onDelete, onToggleAssignee, onToggleLabel, members, labels, onManage,
+}: Props) {
   // local drafts so typing doesn't hit the database on every keystroke (saved on blur)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [comment, setComment] = useState('')
   const [posting, setPosting] = useState(false)
-  const detail = useTaskDetail(task.id, task.updated_at)
+  const detail = useTaskDetail(task.id, `${task.updated_at}#${task._rev ?? 0}`)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -153,6 +168,22 @@ export function TaskDetailPanel({ task, onClose, onUpdate, onDelete }: Props) {
           </div>
           <Field label="Priority">
             <PriorityPicker value={task.priority} onChange={(priority) => onUpdate(task.id, { priority })} />
+          </Field>
+          <Field label="Assignees">
+            <MemberPicker
+              members={members}
+              selected={task.task_assignees.map((a) => a.member_id)}
+              onToggle={(id) => onToggleAssignee(task.id, id)}
+              onManage={onManage}
+            />
+          </Field>
+          <Field label="Labels">
+            <LabelPicker
+              labels={labels}
+              selected={task.task_labels.map((l) => l.label_id)}
+              onToggle={(id) => onToggleLabel(task.id, id)}
+              onManage={onManage}
+            />
           </Field>
 
           {detail.error && (
